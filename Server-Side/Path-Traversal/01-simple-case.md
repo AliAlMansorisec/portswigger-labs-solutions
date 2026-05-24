@@ -1,7 +1,8 @@
 # Lab: File path traversal, simple case
 
-> **Category:** [Path Traversal](../README.md)
+> **Category:** [Path Traversal](https://github.com/AliAlMansorisec/OWASP-Top-10-2025/blob/main/A01%20-%20Broken%20Access%20Control/02-Path-Traversal.md)
 > **Difficulty:** Apprentice
+> **Lab Link:** [PortSwigger Lab Page](https://portswigger.net/web-security/file-path-traversal/lab-simple)
 
 ---
 
@@ -16,7 +17,8 @@
 ### الخطوة 1: فتح المختبر
 
 - اضغط **Access the lab** عشان يفتح لك موقع وهمي للتجربة
-
+- أو افتح الرابط مباشرة: [PortSwigger Lab](https://portswigger.net/web-security/file-path-traversal/lab-simple)
+  
 ### الخطوة 2: تشغيل Burp Suite
 
 - افتح Burp Suite
@@ -90,11 +92,6 @@ carlos:x:1001:1001:,,,:/home/carlos:/bin/bash
 
 ---
 
-## 📸 Proof
-
-![Lab Solved](images/01-simple-case-proof.png)
-
----
 
 ## 🛡️ كيفية الوقاية (How to Prevent)
 
