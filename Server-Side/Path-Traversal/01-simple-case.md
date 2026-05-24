@@ -88,6 +88,36 @@ carlos:x:1001:1001:,,,:/home/carlos:/bin/bash
 | **ماذا لو لم يشتغل؟** | جرب زيادة عدد `../` (مثل 4 أو 5) أو تجربة بايلودات أخرى مثل `....//` لتجاوز الفلاتر. |
 
 ---
+## 🛡️ Remediation & Source Code Fix
+
+### 📌 Vulnerability Root Cause
+
+الخادم لم يطهر المدخلات (Input Sanitization)، فسمح باستخدام `../` للخروج من المجلد المصرح به وقراءة أي ملف من النظام.
+
+---
+
+### ❌ Non-Compliant Code (Next.js)
+
+```javascript
+const { filename } = req.query;
+const filePath = path.join('public/images', filename);
+fs.readFileSync(filePath);
+```
+
+---
+
+### ✅ Compliant Code (Next.js)
+
+```javascript
+const { filename } = req.query;
+const safeFilename = path.basename(filename); // يزيل ../ و /
+const filePath = path.join('public/images', safeFilename);
+fs.readFileSync(filePath);
+```
+
+**الفرق:** سطر واحد `path.basename()` يحل المشكلة كاملة.
+
+---
 
 ## 🛡️ كيفية الوقاية (How to Prevent)
 
