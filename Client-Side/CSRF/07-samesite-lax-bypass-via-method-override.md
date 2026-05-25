@@ -10,6 +10,8 @@
 
 استغلال ثغرة CSRF في وظيفة تغيير البريد الإلكتروني. الموقع يستخدم **SameSite=Lax** (افتراضياً) للكوكي، مما يمنع إرسال الكوكي في طلبات POST عبر المواقع. ولكننا سنستخدم **تجاوز طريقة الطلب (Method Override)** لتحويل الطلب إلى GET (الذي يسمح به SameSite=Lax في التنقلات العلوية) مع إضافة `_method=POST` لإقناع الخادم بمعاملته كـ POST.
 
+**الحساب:** `wiener:peter`
+
 ---
 
 ## 📝 الحل خطوة بخطوة
@@ -17,7 +19,7 @@
 ### الخطوة 1: تسجيل الدخول وفهم إعدادات SameSite
 
 - سجل الدخول بـ `wiener:peter`
-- افتح **DevTools** في المتصفح (F12) → تبويب **Application** → **Cookies**
+- افتح **DevTools** (F12) → تبويب **Application** → **Cookies**
 - ستجد أن كوكي `session` **ليس له SameSite محدد**
 
 هذا يعني: المتصفح يطبق **SameSite=Lax** افتراضياً.
@@ -31,30 +33,23 @@
 
 ### الخطوة 2: فحص طلب تغيير البريد
 
-- اذهب إلى **My account**
-- غير بريدك الإلكتروني إلى أي قيمة
-- في Burp → **Proxy > HTTP history**، ابحث عن الطلب:
+- اذهب إلى **My account** → **Update email**
+- اعترض الطلب في Burp:
 
 ```http
 POST /my-account/change-email HTTP/1.1
 Host: YOUR-LAB-ID.web-security-academy.net
 Cookie: session=YOUR-SESSION-COOKIE
-Content-Type: application/x-www-form-urlencoded
 
 email=wiener%40normal-user.net
 ```
 
 **ملاحظة:** لا يوجد أي CSRF token في الطلب.
 
-### الخطوة 3: اختبار طلب POST العادي (سيفشل في CSRF)
+### الخطوة 3: تحويل الطلب إلى GET
 
-لو حاولنا إرسال طلب POST من موقع خارجي، الكوكي لن يرسل بسبب SameSite=Lax.
-
-### الخطوة 4: تحويل الطلب إلى GET
-
-في Repeater:
-- اضغط بزر الماوس الأيمن على الطلب
-- اختر **Change request method**
+- أرسل الطلب إلى Repeater
+- اضغط بزر الماوس الأيمن → **Change request method**
 - الطلب يتحول إلى:
 
 ```http
@@ -63,7 +58,7 @@ GET /my-account/change-email?email=wiener%40normal-user.net HTTP/1.1
 
 **جرب إرساله:** الخادم يرفض لأن endpoint يقبل POST فقط.
 
-### الخطوة 5: استخدام Method Override
+### الخطوة 4: استخدام Method Override
 
 أضف معامل `_method=POST` إلى الرابط:
 
@@ -75,19 +70,20 @@ GET /my-account/change-email?email=hacked%40attacker.net&_method=POST HTTP/1.1
 
 **لماذا؟** لأن الخادم يدعم `_method` لتجاوز طريقة الطلب الفعلية.
 
-### الخطوة 6: التحقق من تغير البريد
+### الخطوة 5: التحقق من تغير البريد
 
 - في المتصفح، ارجع إلى **My account**
 - لاحظ أن بريدك الإلكتروني تغير إلى `hacked@attacker.net`
 
-### الخطوة 7: فهم آلية التجاوز
+### الخطوة 6: فهم آلية التجاوز
 
 | الطلب | يرسل الكوكي؟ | السبب |
 |-------|-------------|-------|
 | POST عادي (من موقع خارجي) | ❌ لا | SameSite=Lax يمنع POST |
 | GET مع `_method=POST` | ✅ نعم | GET + top-level navigation مسموح |
+| الخادم يعامل GET كـ POST | ✅ | بسبب `_method` |
 
-### الخطوة 8: إنشاء HTML للهجوم
+### الخطوة 7: إنشاء HTML للهجوم
 
 نحتاج إلى **top-level navigation** (تغيير الصفحة) لكي يرسل المتصفح الكوكي:
 
@@ -97,27 +93,28 @@ GET /my-account/change-email?email=hacked%40attacker.net&_method=POST HTTP/1.1
 </script>
 ```
 
-### الخطوة 9: رفع الهجوم إلى Exploit Server
+### الخطوة 8: رفع الهجوم إلى Exploit Server
 
 - اضغط **Go to exploit server**
 - في حقل **Body**، الصق الـ HTML
+- استبدل `YOUR-LAB-ID` بمعرف مختبرك
 - اضغط **Store**
 
-### الخطوة 10: تجربة الهجوم على نفسك
+### الخطوة 9: تجربة الهجوم على نفسك
 
 - اضغط **View exploit**
 - ستتغير صفحتك (top-level navigation)
-- ارجع إلى **My account** وتأكد من تغير بريدك الإلكتروني
+- ارجع إلى **My account** → لاحظ أن بريدك تغير ✅
 
-### الخطوة 11: تسليم الهجوم للضحية
+### الخطوة 10: تسليم الهجوم للضحية
 
-- غير البريد الإلكتروني في الـ HTML إلى قيمة مختلفة (مثل `carlos@hacked.net`)
+- غير البريد الإلكتروني في الـ HTML إلى قيمة مختلفة
 - اضغط **Store**
 - اضغط **Deliver to victim**
 
-### الخطوة 12: حل المختبر
+### الخطوة 11: حل المختبر
 
-بمجرد تسليم الهجوم، سيتم حل المختبر تلقائياً ✅
+بعد بضع ثوانٍ، سيتم حل المختبر ✅
 
 ---
 
@@ -128,18 +125,17 @@ GET /my-account/change-email?email=hacked%40attacker.net&_method=POST HTTP/1.1
 | **ما هو SameSite=Lax؟** | يرسل الكوكي فقط في طلبات GET مع top-level navigation |
 | **ما هو top-level navigation؟** | تغيير عنوان الصفحة (مثل `document.location` أو النقر على رابط) |
 | **كيف تجاوزناه؟** | استخدمنا GET (مسموح) مع `_method=POST` |
-| **لماذا يدعم الخادم `_method`؟** | بعض الأطر (مثل Rails, Laravel) تدعم Method Override للتغلب على قيود HTML |
+| **لماذا يدعم الخادم `_method`؟** | بعض الأطر (مثل Rails, Laravel) تدعم Method Override |
 | **الفرق عن SameSite=Strict؟** | Strict يمنع حتى GET، Lax يسمح بـ GET |
 
 ---
 
 ## 📊 ملخص آلية التجاوز
 
-| الخطوة | الطلب | يرسل الكوكي؟ |
-|--------|-------|-------------|
-| 1 | POST عادي (من موقع خارجي) | ❌ لا (يمنعه Lax) |
-| 2 | GET + `_method=POST` + top-level navigation | ✅ نعم (مسموح) |
-| 3 | الخادم يعامل GET كـ POST بسبب `_method` | ✅ يتم تغيير البريد |
+| الطلب | يرسل الكوكي؟ | النتيجة |
+|-------|-------------|---------|
+| POST عادي (من موقع خارجي) | ❌ لا | يفشل |
+| GET + `_method=POST` + top-level navigation | ✅ نعم | ينجح |
 
 ---
 
@@ -160,20 +156,14 @@ GET /my-account/change-email?email=hacked%40attacker.net&_method=POST HTTP/1.1
 res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; Secure`);
 
 // وظيفة تغيير البريد - تدعم Method Override
-export default function handler(req, res) {
-  // خطأ: السماح بـ method override من query string
-  const method = req.query._method || req.method;
+const method = req.query._method || req.method;
+
+if (method === 'POST') {
+  const { email } = req.method === 'POST' ? req.body : req.query;
+  const { sessionId } = req.cookies;
   
-  if (method === 'POST') {
-    const { email } = req.method === 'POST' ? req.body : req.query;
-    const { sessionId } = req.cookies;
-    
-    const user = getUserBySession(sessionId);
-    updateUserEmail(user.id, email);
-    res.send('Email updated');
-  } else {
-    res.status(405).send('Method not allowed');
-  }
+  const user = getUserBySession(sessionId);
+  updateUserEmail(user.id, email);
 }
 ```
 
@@ -182,35 +172,29 @@ export default function handler(req, res) {
 ### ✅ Compliant Code (Next.js)
 
 ```javascript
-// إعدادات الكوكي - SameSite=Strict أو Lax + CSRF Token
+// إعدادات الكوكي - SameSite=Strict
 res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`);
 
 // وظيفة تغيير البريد - لا تدعم Method Override
-export default function handler(req, res) {
-  // التصحيح: رفض أي طلب ليس POST حقيقياً
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method not allowed');
-  }
-  
-  const { email, csrfToken } = req.body;
-  const { sessionId } = req.cookies;
-  
-  // التحقق من CSRF Token
-  if (!csrfToken || !verifyCsrfToken(sessionId, csrfToken)) {
-    return res.status(403).send('Invalid CSRF token');
-  }
-  
-  const user = getUserBySession(sessionId);
-  updateUserEmail(user.id, email);
-  res.send('Email updated');
+if (req.method !== 'POST') {
+  return res.status(405).send('Method not allowed');
 }
+
+const { email, csrfToken } = req.body;
+const { sessionId } = req.cookies;
+
+if (!verifyCsrfToken(sessionId, csrfToken)) {
+  return res.status(403).send('Invalid CSRF token');
+}
+
+const user = getUserBySession(sessionId);
+updateUserEmail(user.id, email);
 ```
 
 **الخلاصة:** 
 1. لا تعتمد على SameSite فقط كحماية وحيدة
 2. استخدم CSRF Tokens حتى مع SameSite=Strict
 3. لا تدعم Method Override في endpoints حساسة
-4. استخدم `SameSite=Strict` بدلاً من Lax كلما أمكن
 
 ---
 
