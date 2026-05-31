@@ -187,6 +187,3 @@ export async function getServerSideProps(context) {
 - [PortSwigger Lab Page](https://portswigger.net/web-security/access-control/lab-user-id-controlled-by-request-parameter-with-data-leakage-in-redirect)
 - [Access Control Cheat Sheet](https://portswigger.net/web-security/access-control)
 
----
-
-✅ **اللاب السابع من Access Control جاهز.** هل تريد اللاب الثامن؟
