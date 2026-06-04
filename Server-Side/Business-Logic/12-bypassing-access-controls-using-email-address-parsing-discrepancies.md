@@ -278,6 +278,26 @@ function decodeUTF7(encoded) {
 
 ---
 
+## 📊 ملخص لابات Business Logic
+
+| # | اللاب | نوع الثغرة | طريقة الاستغلال |
+|---|-------|-----------|----------------|
+| 01 | Excessive trust in client-side controls | الثقة المفرطة بمدخلات العميل | تغيير معامل `price` في طلب `POST /cart` |
+| 02 | High-level logic vulnerability | قبول كميات سالبة | استخدام `quantity` سالبة لجعل السعر الإجمالي سالباً |
+| 03 | Inconsistent security controls | صلاحيات تعتمد على البريد الإلكتروني | تغيير البريد إلى `@dontwannacry.com` |
+| 04 | Flawed enforcement of business rules | تطبيق غير صحيح لقواعد الخصم | التناوب بين كوبونين (`NEWCUST5` و `SIGNUP30`) |
+| 05 | Low-level logic flaw | Integer Overflow | إضافة كميات كبيرة جداً حتى يتجاوز السعر الحد الأقصى |
+| 06 | Inconsistent handling of exceptional input | معالجة غير متناسقة للمدخلات الطويلة | استخدام بريد أطول من 255 حرفاً مع UTF-7 |
+| 07 | Weak isolation on dual-use endpoint | عزل ضعيف لنقطة نهاية مزدوجة | حذف `current-password` وتغيير `username` |
+| 08 | Insufficient workflow validation | التحقق غير الكافي من تسلسل العملية | تخطي خطوة الدفع وإرسال طلب التأكيد مباشرة |
+| 09 | Authentication bypass via flawed state machine | آلة حالة معطوبة | إسقاط (drop) طلب `GET /role-selector` |
+| 10 | Infinite money logic flaw | ثغرة ربح غير محدود | شراء بطاقات هدية بخصم واستردادها بقيمتها الكاملة |
+| 11 | Authentication bypass via encryption oracle | كشف محور تشفير (encryption oracle) | تشفير `administrator:timestamp` واستخدامه كـ `stay-logged-in` |
+| 12 | Bypassing access controls using email address parsing discrepancies | اختلاف في تفسير عناوين البريد | استخدام ترميز UTF-7 لتسجيل بريد يصل إلى خادمنا مع نطاق مسموح |
+
+---
+
+
 ## 🔗 روابط مفيدة
 
 - [PortSwigger Lab Page](https://portswigger.net/web-security/logic-flaws/lab-access-control-bypass-via-email-address-parsing-discrepancies)
