@@ -216,6 +216,20 @@ ADMIN_PASSWORD=superSecretPassword123
 
 ---
 
+
+
+## 📊 ملخص لابات Information Disclosure
+
+| # | اللاب | نوع المعلومات المسربة | طريقة الاستغلال |
+|---|-------|---------------------|----------------|
+| 01 | Information disclosure in error messages | رقم إصدار الإطار (framework version) | إرسال بيانات غير متوقعة (string بدلاً من int) لظهور stack trace |
+| 02 | Information disclosure on debug page | `SECRET_KEY` ومتغيرات البيئة | البحث في تعليقات HTML عن `/cgi-bin/phpinfo.php` |
+| 03 | Source code disclosure via backup files | كلمة مرور قاعدة البيانات | اكتشاف `/backup` في `robots.txt` وتحميل ملف `.java.bak` |
+| 04 | Authentication bypass via information disclosure | هيدر `X-Custom-IP-Authorization` | استخدام طريقة `TRACE` لاكتشاف الهيدر ثم تزويره |
+| 05 | Information disclosure in version control history | كلمة مرور المسؤول (administrator) | تحميل مجلد `.git` وتحليل history باستخدام `git log` و `git diff` |
+
+---
+
 ## 🔗 روابط مفيدة
 
 - [PortSwigger Lab Page](https://portswigger.net/web-security/information-disclosure/lab-information-disclosure-in-version-control-history)
