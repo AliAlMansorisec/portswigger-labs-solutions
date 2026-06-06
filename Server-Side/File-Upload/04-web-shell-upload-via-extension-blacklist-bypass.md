@@ -229,7 +229,3 @@ export default function uploadHandler(req, res) {
 - [PortSwigger Lab Page](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-extension-blacklist-bypass)
 - [.htaccess File Security](https://httpd.apache.org/docs/current/howto/htaccess.html)
 - [File Upload Cheat Sheet](https://portswigger.net/web-security/file-upload)
-
----
-
-✅ **اللاب الرابع من File Upload جاهز.** هل تريد اللاب الخامس؟
