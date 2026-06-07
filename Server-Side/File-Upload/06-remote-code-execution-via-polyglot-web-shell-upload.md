@@ -246,6 +246,3 @@ location /files/avatars {
 - [Polyglot Files](https://portswigger.net/web-security/file-upload/polyglot)
 - [File Upload Cheat Sheet](https://portswigger.net/web-security/file-upload)
 
----
-
-✅ **اللاب السادس من File Upload جاهز.** هل تريد اللاب السابع والأخير؟
