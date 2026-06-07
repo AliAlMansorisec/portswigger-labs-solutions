@@ -214,7 +214,3 @@ export default function handler(req, res) {
 - [PortSwigger Lab Page](https://portswigger.net/web-security/file-upload/lab-file-upload-web-shell-upload-via-obfuscated-file-extension)
 - [Null Byte Injection](https://portswigger.net/web-security/essential-skills/obfuscating-attacks-using-encodings#null-byte-injection)
 - [File Upload Cheat Sheet](https://portswigger.net/web-security/file-upload)
-
----
-
-✅ **اللاب الخامس من File Upload جاهز.** هل تريد اللاب السادس؟
