@@ -153,22 +153,6 @@ Content-Type: text/html; charset=UTF-8
 
 ---
 
-## 📊 شرح Race Condition بالرسوم
-
-```
-الوقت →
-─────────────────────────────────────────────────────
-
-[رفع الملف]     [تبدأ عمليات GET]     [فحص وحذف]
-     ↓                  ↓                  ↓
-     ├──────────────────┼──────────────────┤
-                        ↑
-                  نافذة التنفيذ
-                  (Race Window)
-```
-
----
-
 ## 🛡️ Remediation & Source Code Fix
 
 ### 📌 Vulnerability Root Cause
